@@ -150,11 +150,30 @@ async function cleanupIndividualFiles(pdfFiles: string[]): Promise<void> {
   }
 }
 
+async function cleanupDownloadsFolder(): Promise<void> {
+  try {
+    console.log("\n🧹 Cleaning up downloads folder...");
+    const files = await fs.readdir(OUTPUT_DIR);
+    for (const file of files) {
+      const filePath = path.join(OUTPUT_DIR, file);
+      await fs.unlink(filePath);
+      console.log(`✅ Deleted: ${file}`);
+    }
+    console.log("✅ Downloads folder cleanup complete!");
+  } catch (error) {
+    console.error("❌ Error during downloads folder cleanup:", error);
+    // Don't throw here, as cleanup is not critical
+  }
+}
+
 (async () => {
   try {
     console.log("=".repeat(50));
     console.log("📰 Newspaper PDF Downloader and Merger");
     console.log("=".repeat(50));
+
+    // Clean up downloads folder before starting
+    await cleanupDownloadsFolder();
 
     const { pdfFiles, dateStr } = await downloadNewspaperPDFs();
     const mergedFilePath = await mergePDFs(pdfFiles, dateStr);
@@ -180,6 +199,9 @@ async function cleanupIndividualFiles(pdfFiles: string[]): Promise<void> {
     if (slackResult.status === "success") {
       console.log("✅ PDF sent successfully to Slack!");
       console.log(`📎 File ID: ${slackResult.messageId}`);
+
+      // Clean up the merged PDF file after successful Slack upload
+      await cleanupDownloadsFolder();
     } else {
       console.error("❌ Failed to send PDF to Slack:", slackResult.error);
     }
