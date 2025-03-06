@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { chromium } from "playwright-chromium";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { PDFDocument } from "pdf-lib";
@@ -166,45 +166,45 @@ async function cleanupDownloadsFolder(): Promise<void> {
   }
 }
 
+async function handleSlackUpload(mergedFilePath: string): Promise<void> {
+  // Validate Slack credentials
+  if (!process.env.SLACK_BOT_TOKEN || !process.env.SLACK_CHANNEL_ID) {
+    throw new Error(
+      "SLACK_BOT_TOKEN and SLACK_CHANNEL_ID are required in .env file"
+    );
+  }
+
+  // Send the merged PDF to Slack
+  console.log("\n💬 Sending PDF to Slack...");
+  const slackResult = await sendPDFToSlack(
+    mergedFilePath,
+    process.env.SLACK_CHANNEL_ID,
+    process.env.SLACK_BOT_TOKEN
+  );
+
+  if (slackResult.status === "success") {
+    console.log("✅ PDF sent successfully to Slack!");
+    console.log(`📎 File ID: ${slackResult.messageId}`);
+
+    // Clean up the merged PDF file after successful Slack upload
+    await cleanupDownloadsFolder();
+  } else {
+    console.error("❌ Failed to send PDF to Slack:", slackResult.error);
+    throw new Error("Failed to send PDF to Slack: " + slackResult.error);
+  }
+}
+
 (async () => {
   try {
     console.log("=".repeat(50));
     console.log("📰 Newspaper PDF Downloader and Merger");
     console.log("=".repeat(50));
 
-    // Clean up downloads folder before starting
     await cleanupDownloadsFolder();
-
     const { pdfFiles, dateStr } = await downloadNewspaperPDFs();
     const mergedFilePath = await mergePDFs(pdfFiles, dateStr);
-
-    // Clean up individual files after successful merge
     await cleanupIndividualFiles(pdfFiles);
-
-    // Validate Slack credentials
-    if (!process.env.SLACK_BOT_TOKEN || !process.env.SLACK_CHANNEL_ID) {
-      throw new Error(
-        "SLACK_BOT_TOKEN and SLACK_CHANNEL_ID are required in .env file"
-      );
-    }
-
-    // Send the merged PDF to Slack
-    console.log("\n💬 Sending PDF to Slack...");
-    const slackResult = await sendPDFToSlack(
-      mergedFilePath,
-      process.env.SLACK_CHANNEL_ID,
-      process.env.SLACK_BOT_TOKEN
-    );
-
-    if (slackResult.status === "success") {
-      console.log("✅ PDF sent successfully to Slack!");
-      console.log(`📎 File ID: ${slackResult.messageId}`);
-
-      // Clean up the merged PDF file after successful Slack upload
-      await cleanupDownloadsFolder();
-    } else {
-      console.error("❌ Failed to send PDF to Slack:", slackResult.error);
-    }
+    await handleSlackUpload(mergedFilePath);
 
     console.log("\n✨ All tasks completed successfully!");
     console.log("=".repeat(50));
