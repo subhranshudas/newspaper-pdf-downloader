@@ -1,0 +1,20 @@
+name: Daily PDF Scraper Run
+
+on:
+  schedule:
+    - cron: "30 10 * * *" # 10:30 AM UTC = 4:00 PM IST
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run Docker Container from Registry
+        run: |
+          docker pull ghcr.io/${{ github.repository }}/pdf-scraper:latest
+          docker run --rm \
+            -e NEWSPAPER_BASE_URL="${{ secrets.NEWSPAPER_BASE_URL }}" \
+            -e SLACK_BOT_TOKEN="${{ secrets.SLACK_BOT_TOKEN }}" \
+            -e SLACK_CHANNEL_ID="${{ secrets.SLACK_CHANNEL_ID }}" \
+            ghcr.io/${{ github.repository }}/pdf-scraper:latest
