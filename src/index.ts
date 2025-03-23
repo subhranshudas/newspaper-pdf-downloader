@@ -17,6 +17,13 @@ if (!process.env.NEWSPAPER_BASE_URL) {
 const NEWSPAPER_BASE_URL = process.env.NEWSPAPER_BASE_URL;
 const OUTPUT_DIR = path.join(__dirname, "../downloads");
 
+// Timeouts and delays in milliseconds
+const BROWSER_LAUNCH_TIMEOUT = 45000; // 45 seconds
+const NAVIGATION_TIMEOUT = 60000; // 60 seconds
+const PAGE_STABILIZATION_DELAY = 8000; // 8 seconds
+const RETRY_WAIT_DELAY = 5000; // 5 seconds
+const MAX_RETRY_ATTEMPTS = 3;
+
 async function downloadNewspaperPDFs() {
   // Ensure output directory exists
   await fs.mkdir(OUTPUT_DIR, { recursive: true });
@@ -24,19 +31,84 @@ async function downloadNewspaperPDFs() {
   const dateStr = getFormattedDate();
   const NEWSPAPER_URL = `${NEWSPAPER_BASE_URL}/${dateStr}/1`;
 
-  // Launch browser
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    acceptDownloads: true, // Enable downloads
-  });
-  const page = await context.newPage();
+  let browser;
 
   try {
+    // Launch browser with optimized arguments for reliability
+    console.log("🚀 Starting browser...");
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--disable-dev-shm-usage", "--disable-gpu"],
+      timeout: BROWSER_LAUNCH_TIMEOUT,
+    });
+
+    const context = await browser.newContext({
+      acceptDownloads: true, // Enable downloads
+    });
+    const page = await context.newPage();
+
     console.log("🚀 Starting newspaper download process...");
     console.log(`📅 Date: ${dateStr}`);
     console.log(`📄 URL: ${NEWSPAPER_URL}`);
 
-    await page.goto(NEWSPAPER_URL, { waitUntil: "networkidle" });
+    // Implement retry logic
+    let success = false;
+    let retryCount = 0;
+
+    while (!success && retryCount < MAX_RETRY_ATTEMPTS) {
+      try {
+        console.log(
+          `📄 Navigation attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS}...`
+        );
+
+        // Navigate with reasonable timeout
+        await page.goto(NEWSPAPER_URL, {
+          waitUntil: "domcontentloaded",
+          timeout: NAVIGATION_TIMEOUT,
+        });
+
+        // Add explicit wait
+        console.log(
+          `⏳ Waiting additional ${
+            PAGE_STABILIZATION_DELAY / 1000
+          } seconds for page to stabilize...`
+        );
+        await page.waitForTimeout(PAGE_STABILIZATION_DELAY);
+
+        // Check if the critical selector exists
+        const selectorExists = await page.$("#tpgnumber");
+        if (!selectorExists) {
+          throw new Error(
+            "Required selector #tpgnumber not found after waiting"
+          );
+        }
+
+        // If we get here, navigation was successful
+        success = true;
+        console.log("✅ Page navigation successful!");
+      } catch (error) {
+        retryCount++;
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.error(
+          `❌ Navigation attempt ${retryCount} failed: ${errorMessage}`
+        );
+
+        if (retryCount >= MAX_RETRY_ATTEMPTS) {
+          throw new Error(
+            `Failed to navigate after ${MAX_RETRY_ATTEMPTS} attempts: ${errorMessage}`
+          );
+        }
+
+        // Wait before retry
+        console.log(
+          `⏳ Waiting ${RETRY_WAIT_DELAY / 1000} seconds before retry attempt ${
+            retryCount + 1
+          }...`
+        );
+        await page.waitForTimeout(RETRY_WAIT_DELAY);
+      }
+    }
 
     // Get total number of pages from the dropdown
     const totalPages = await page.$eval(
@@ -107,7 +179,7 @@ async function downloadNewspaperPDFs() {
     console.error("❌ Error downloading PDFs:", error);
     throw error;
   } finally {
-    await browser.close();
+    await browser?.close();
   }
 }
 

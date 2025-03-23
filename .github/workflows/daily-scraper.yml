@@ -8,6 +8,7 @@ on:
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
+    timeout-minutes: 20 # Add timeout for the job
 
     steps:
       - name: Log in to GitHub Container Registry
@@ -21,7 +22,9 @@ jobs:
         run: |
           docker pull ghcr.io/${{ github.repository }}/pdf-scraper:latest
           docker run --rm \
+            --memory=1g \
             -e NEWSPAPER_BASE_URL="${{ secrets.NEWSPAPER_BASE_URL }}" \
             -e SLACK_BOT_TOKEN="${{ secrets.SLACK_BOT_TOKEN }}" \
             -e SLACK_CHANNEL_ID="${{ secrets.SLACK_CHANNEL_ID }}" \
             ghcr.io/${{ github.repository }}/pdf-scraper:latest
+        timeout-minutes: 15 # Add a step-specific timeout

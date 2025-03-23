@@ -8,6 +8,7 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # Add timeout to prevent hanging builds
 
     steps:
       - name: Checkout Repository
@@ -20,8 +21,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2 # For faster, more efficient builds
+
       - name: Build Docker Image
-        run: docker build -t ghcr.io/${{ github.repository }}/pdf-scraper:latest .
+        run: docker build --cache-from=ghcr.io/${{ github.repository }}/pdf-scraper:latest -t ghcr.io/${{ github.repository }}/pdf-scraper:latest .
 
       - name: Push Docker Image
         run: docker push ghcr.io/${{ github.repository }}/pdf-scraper:latest
