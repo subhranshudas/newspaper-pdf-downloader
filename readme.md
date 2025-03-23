@@ -39,3 +39,9 @@ docker image ls newspaper-pdf-downloader
 ```bash
 docker container ls -a -s
 ```
+
+### docker image
+
+```bash
+docker pull ghcr.io/subhranshudas/newspaper-pdf-downloader/pdf-scraper:latest
+```
